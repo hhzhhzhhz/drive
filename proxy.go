@@ -27,13 +27,16 @@ func (p *Proxy) Copy(dst, src io.ReadWriteCloser) error {
 			log.Logger().Error("an error occurred while copying panic error:%v; stack:%s", errRecover, buf[:n])
 		}
 	}()
-	go p.copy(dst, src)
-	p.copy(src, dst)
-	return nil
+	errChan := make(chan error)
+	go p.copy(dst, src, errChan)
+	go p.copy(src, dst, errChan)
+	err := <-errChan
+	return err
 }
 
-func (p Proxy) copy(dst io.WriteCloser, src io.Reader) {
+func (p Proxy) copy(dst io.WriteCloser, src io.Reader, errCh chan error) {
 	_, err := io.Copy(dst, src)
+	errCh <- err
 	if err != nil {
 		p.logger.Error("src read failed err_msg=%s", err.Error())
 	}
